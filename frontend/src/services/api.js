@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-// Public deployment URL support: uses VITE_API_BASE_URL if configured, else defaults to window origin or localhost:5000
+// Public deployment URL support: uses VITE_API_BASE_URL if configured, else defaults to deployed Render backend
+const DEPLOYED_BACKEND_URL = 'https://border-ai-backend.onrender.com';
 const rawApiBase = import.meta.env.VITE_API_BASE_URL;
+
 let API_URL;
 let BACKEND_ORIGIN;
 
@@ -9,12 +11,24 @@ if (rawApiBase) {
   const cleanBase = rawApiBase.replace(/\/+$/, '');
   API_URL = cleanBase.endsWith('/api') ? cleanBase : `${cleanBase}/api`;
   BACKEND_ORIGIN = cleanBase.endsWith('/api') ? cleanBase.slice(0, -4) : cleanBase;
-} else if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-  API_URL = `${window.location.origin}/api`;
-  BACKEND_ORIGIN = window.location.origin;
+} else if (typeof window !== 'undefined') {
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    // Local dev (Vite proxy forwards /api) or local Flask server
+    API_URL = `${window.location.origin}/api`;
+    BACKEND_ORIGIN = window.location.origin;
+  } else if (window.location.origin.includes('border-ai-backend.onrender.com')) {
+    // Frontend served directly from the same backend host
+    API_URL = `${window.location.origin}/api`;
+    BACKEND_ORIGIN = window.location.origin;
+  } else {
+    // Separate frontend deployment (e.g. Render frontend static service)
+    API_URL = `${DEPLOYED_BACKEND_URL}/api`;
+    BACKEND_ORIGIN = DEPLOYED_BACKEND_URL;
+  }
 } else {
-  API_URL = 'https://border-ai-backend.onrender.com/api';
-  BACKEND_ORIGIN = 'https://border-ai-backend.onrender.com';
+  API_URL = `${DEPLOYED_BACKEND_URL}/api`;
+  BACKEND_ORIGIN = DEPLOYED_BACKEND_URL;
 }
 
 export const getMediaUrl = (path) => {
