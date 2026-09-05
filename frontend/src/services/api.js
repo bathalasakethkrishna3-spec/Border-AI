@@ -13,8 +13,8 @@ if (rawApiBase) {
   API_URL = `${window.location.origin}/api`;
   BACKEND_ORIGIN = window.location.origin;
 } else {
-  API_URL = 'http://127.0.0.1:5000/api';
-  BACKEND_ORIGIN = 'http://127.0.0.1:5000';
+  API_URL = 'https://border-ai-backend.onrender.com/api';
+  BACKEND_ORIGIN = 'https://border-ai-backend.onrender.com';
 }
 
 export const getMediaUrl = (path) => {
