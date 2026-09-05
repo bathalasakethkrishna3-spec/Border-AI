@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#060b13] text-slate-100 selection:bg-defense-cyan/30 selection:text-defense-cyan;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Custom Scrollbar for Tactical Command Center */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070c16;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a2c47;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a446c;
+}
+
+/* Tactical Panel Glow & Borders */
+.surveillance-panel {
+  background: linear-gradient(135deg, rgba(14, 26, 46, 0.85) 0%, rgba(7, 12, 22, 0.95) 100%);
+  border: 1px solid #1a2c47;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.6), inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.surveillance-panel-active {
+  border-color: rgba(6, 182, 212, 0.4);
+  box-shadow: 0 0 15px -3px rgba(6, 182, 212, 0.15), inset 0 0 10px rgba(6, 182, 212, 0.05);
+}
+
+.surveillance-panel-danger {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 15px -3px rgba(239, 68, 68, 0.2);
+}
+
+/* CCTV Scanlines & Grid HUD */
+.cctv-scanlines {
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.25) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.03),
+    rgba(0, 255, 0, 0.01),
+    rgba(0, 0, 255, 0.03)
+  );
+  background-size: 100% 3px, 6px 100%;
+  pointer-events: none;
+}
+
+.cctv-vignette {
+  background: radial-gradient(circle at center, transparent 60%, rgba(3, 7, 18, 0.85) 100%);
+  pointer-events: none;
+}
+
+.cctv-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+}
+
+/* Leaflet Dark Customization */
+.leaflet-container {
+  background: #070c16 !important;
+  font-family: inherit !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #0b1322 !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #1a2c47 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8) !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup-content {
+  margin: 12px !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-popup-tip {
+  background: #0b1322 !important;
+  border: 1px solid #1a2c47 !important;
+}
+
+/* Pulsing Markers */
+@keyframes radar-ping {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.marker-pulse {
+  animation: radar-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
