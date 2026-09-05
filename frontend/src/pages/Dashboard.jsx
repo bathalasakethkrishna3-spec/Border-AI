@@ -32,7 +32,7 @@ import { useAlerts } from '../context/AlertContext';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { resolveAlert } = useAlerts();
+  const { resolveAlert, resolveIncident, activeAlertCount, activeIncidentCount } = useAlerts();
 
   const [dashboardData, setDashboardData] = useState(null);
   const [cameras, setCameras] = useState([]);
@@ -68,6 +68,11 @@ const Dashboard = () => {
     const interval = setInterval(() => fetchDashboard(false), 6000);
     return () => clearInterval(interval);
   }, []);
+
+  // Reactively re-fetch telemetry whenever alerts or incidents are resolved or simulated anywhere
+  useEffect(() => {
+    fetchDashboard(false);
+  }, [activeAlertCount, activeIncidentCount]);
 
   const handleQuickResolve = async (alertId) => {
     await resolveAlert(alertId);
@@ -278,13 +283,26 @@ const Dashboard = () => {
                       </span>
                     </td>
                     <td className="py-2.5 text-right">
-                      <button
-                        onClick={() => navigate(`/cameras/${inc.camera_id}`)}
-                        className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] flex items-center gap-1 ml-auto shadow-md shadow-red-950/60 transition-all"
-                      >
-                        <PlayCircle className="w-3 h-3" />
-                        <span>Inspect & Replay</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={async () => {
+                            await resolveIncident(inc.incident_id);
+                            fetchDashboard(false);
+                          }}
+                          className="px-2 py-1 rounded bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 font-bold text-[10px] flex items-center gap-1 transition-all shadow-sm"
+                          title="Resolve incident"
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Resolve</span>
+                        </button>
+                        <button
+                          onClick={() => navigate(`/cameras/${inc.camera_id}`)}
+                          className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-md shadow-red-950/60 transition-all"
+                        >
+                          <PlayCircle className="w-3 h-3" />
+                          <span>Inspect</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -81,14 +81,74 @@ const BorderMap = ({
     ? { lat: focusedCamera.latitude, lng: focusedCamera.longitude }
     : (selectedSec ? { lat: selectedSec.center_lat, lng: selectedSec.center_lng } : null);
 
+  const [layerType, setLayerType] = useState('satellite'); // 'satellite' | 'topo' | 'dark'
+
   useEffect(() => {
     if (focusedCameraId && markerRefs.current[focusedCameraId]) {
       markerRefs.current[focusedCameraId].openPopup();
     }
   }, [focusedCameraId]);
 
+  const tileLayerConfigs = {
+    satellite: {
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      attribution: '&copy; Esri, Maxar, Earthstar Geographics | BorderAI Recon',
+      maxZoom: 19,
+    },
+    topo: {
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+      attribution: '&copy; Esri Topo Map | BorderAI GIS',
+      maxZoom: 19,
+    },
+    dark: {
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd',
+      attribution: '&copy; CARTO Tactical Dark | BorderAI GIS',
+      maxZoom: 19,
+    }
+  };
+
+  const activeTileConfig = tileLayerConfigs[layerType] || tileLayerConfigs.dark;
+
   return (
     <div className="relative w-full rounded-xl overflow-hidden border border-[#1a2c47] bg-[#070c16] shadow-xl" style={{ height }}>
+      {/* Map Layer Switcher Control */}
+      <div className="absolute top-3 right-3 z-[1000] bg-[#0b1322]/90 backdrop-blur border border-[#1a2c47] rounded-lg p-1 flex items-center gap-1 shadow-lg text-[10px] font-mono">
+        <button
+          type="button"
+          onClick={() => setLayerType('satellite')}
+          className={`px-2 py-1 rounded transition-all font-semibold ${
+            layerType === 'satellite'
+              ? 'bg-cyan-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+          }`}
+        >
+          🛰️ Satellite
+        </button>
+        <button
+          type="button"
+          onClick={() => setLayerType('topo')}
+          className={`px-2 py-1 rounded transition-all font-semibold ${
+            layerType === 'topo'
+              ? 'bg-cyan-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+          }`}
+        >
+          🏔️ Terrain
+        </button>
+        <button
+          type="button"
+          onClick={() => setLayerType('dark')}
+          className={`px-2 py-1 rounded transition-all font-semibold ${
+            layerType === 'dark'
+              ? 'bg-cyan-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+          }`}
+        >
+          ⬛ Tactical Dark
+        </button>
+      </div>
+
       <MapContainer
         center={defaultCenter}
         zoom={defaultZoom}
@@ -98,10 +158,20 @@ const BorderMap = ({
         zoomControl={interactive}
       >
         <TileLayer
-          attribution='&copy; <a href="https://carto.com/">CARTO</a> | BorderAI GIS'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          maxZoom={19}
+          key={layerType}
+          attribution={activeTileConfig.attribution}
+          url={activeTileConfig.url}
+          subdomains={activeTileConfig.subdomains || 'abc'}
+          maxZoom={activeTileConfig.maxZoom}
+          eventHandlers={{
+            tileerror: () => {
+              // Graceful fallback to dark tactical if satellite or topo fails to load
+              if (layerType !== 'dark') {
+                console.warn(`Layer ${layerType} failed to load tile. Falling back to Tactical Dark.`);
+                setLayerType('dark');
+              }
+            }
+          }}
         />
 
         {focusCoordinates && <MapController focusLocation={focusCoordinates} zoom={selectedSec && !focusedCamera ? 11 : 13} />}

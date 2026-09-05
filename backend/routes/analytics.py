@@ -107,7 +107,7 @@ def get_dashboard_data():
 def get_trends():
     now = datetime.utcnow()
     
-    # 7-day trend
+    # 1. 7-Day Intrusion & Object Trend (Calculated from actual Detection and Incident records)
     trend_7_days = []
     for i in range(6, -1, -1):
         day_date = now - timedelta(days=i)
@@ -117,7 +117,7 @@ def get_trends():
         persons = Detection.query.filter(
             Detection.timestamp >= day_start,
             Detection.timestamp < day_end,
-            Detection.object_type.in_(['PERSON', 'MULTI_PERSON', 'INTRUDER'])
+            Detection.object_type.in_(['PERSON', 'MULTI_PERSON'])
         ).count()
         
         vehicles = Detection.query.filter(
@@ -133,34 +133,77 @@ def get_trends():
 
         trend_7_days.append({
             'date': day_date.strftime('%b %d'),
-            'persons': persons or (12 + i * 3),
-            'vehicles': vehicles or (5 + i * 2),
-            'intrusions': intrusions or (1 if i % 2 == 0 else 2)
+            'persons': persons,
+            'vehicles': vehicles,
+            'intrusions': intrusions
         })
 
-    # Sector threat comparison
+    # 2. Sector Threat Concentration (Calculated from incidents associated with each sector)
     sectors = Sector.query.order_by(Sector.sector_id.asc()).all()
     alerts_by_sector = []
     for s in sectors:
-        tot_alerts = Alert.query.join(Camera, Alert.camera_id == Camera.camera_id).filter(Camera.sector == s.sector_id).count()
-        high_alerts = Alert.query.join(Camera, Alert.camera_id == Camera.camera_id).filter(Camera.sector == s.sector_id, Alert.priority.in_(['HIGH', 'CRITICAL'])).count()
+        tot_incidents = Incident.query.filter(Incident.sector == s.sector_id).count()
+        high_threats = Incident.query.filter(
+            Incident.sector == s.sector_id,
+            Incident.risk_level.in_(['HIGH', 'CRITICAL'])
+        ).count()
         alerts_by_sector.append({
             'sector': s.sector_id,
-            'total_alerts': tot_alerts or 4,
-            'high_priority': high_alerts or 2
+            'total_alerts': tot_incidents,
+            'high_priority': high_threats
+        })
+
+    # 3. Detection Breakdown (Calculated from real Detection records)
+    persons_total = Detection.query.filter(Detection.object_type.in_(['PERSON', 'MULTI_PERSON'])).count()
+    vehicles_total = Detection.query.filter(Detection.object_type == 'VEHICLE').count()
+    intrusions_total = Detection.query.filter(
+        db.or_(
+            Detection.object_type == 'INTRUDER',
+            Detection.is_in_restricted_zone == True,
+            Detection.stage.in_(['STAGE_4_INTRUSION', 'INTRUSION'])
+        )
+    ).count()
+    other_total = Detection.query.filter(
+        ~Detection.object_type.in_(['PERSON', 'MULTI_PERSON', 'VEHICLE', 'INTRUDER'])
+    ).count()
+
+    total_detections_count = persons_total + vehicles_total + intrusions_total + other_total
+
+    # 4. 24-Hour Perimeter Motion Distribution (Hourly aggregation over last 24 hours)
+    hourly_distribution = []
+    for h in range(23, -1, -1):
+        h_start = (now - timedelta(hours=h)).replace(minute=0, second=0, microsecond=0)
+        h_end = h_start + timedelta(hours=1)
+
+        det_count = Detection.query.filter(
+            Detection.timestamp >= h_start,
+            Detection.timestamp < h_end
+        ).count()
+
+        inc_count = Incident.query.filter(
+            Incident.detection_time >= h_start,
+            Incident.detection_time < h_end
+        ).count()
+
+        hourly_distribution.append({
+            'hour': h_start.strftime('%H:00'),
+            'detections': det_count,
+            'intrusions': inc_count,
+            'total': det_count + inc_count
         })
 
     return jsonify({
         'trend_7_days': trend_7_days,
         'alerts_by_sector': alerts_by_sector,
+        'hourly_distribution': hourly_distribution,
         'correlations': CrossCameraCorrelationService.find_correlated_movements(),
         'detection_overview': {
-            'total': Detection.query.count() or 145,
+            'total': total_detections_count,
             'breakdown': [
-                {'name': 'Persons', 'value': 62, 'color': '#3b82f6'},
-                {'name': 'Vehicles', 'value': 28, 'color': '#06b6d4'},
-                {'name': 'Intrusions', 'value': 18, 'color': '#ef4444'},
-                {'name': 'Motion/Others', 'value': 16, 'color': '#8b5cf6'}
+                {'name': 'Persons', 'value': persons_total, 'color': '#3b82f6'},
+                {'name': 'Vehicles', 'value': vehicles_total, 'color': '#06b6d4'},
+                {'name': 'Intrusions', 'value': intrusions_total, 'color': '#ef4444'},
+                {'name': 'Motion/Others', 'value': other_total, 'color': '#8b5cf6'}
             ]
         }
     }), 200

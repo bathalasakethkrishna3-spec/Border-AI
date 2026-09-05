@@ -1,5 +1,6 @@
 import os
 import logging
+from datetime import datetime
 from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 from config import Config
@@ -111,14 +112,45 @@ def create_app(config_class=Config):
         logger.error(f"Internal server error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-    # Auto seed database on startup if empty
+    # Auto seed and reconcile database on startup
     with app.app_context():
         try:
             db.create_all()
             from models.user import User
             if User.query.count() == 0:
                 seed_database()
-        except Exception:
+            else:
+                # Reconcile any existing desynchronized incident/alert/camera rows
+                from models.incident import Incident
+                from models.alert import Alert
+                from models.camera import Camera
+
+                # 1. Sync incidents whose alerts are resolved
+                active_incs = Incident.query.filter(Incident.status.in_(['NEW', 'ACKNOWLEDGED', 'UNDER_INVESTIGATION'])).all()
+                for inc in active_incs:
+                    als = Alert.query.filter_by(incident_id=inc.incident_id).all()
+                    if als and all(a.status == 'RESOLVED' for a in als):
+                        inc.status = 'RESOLVED'
+                        inc.resolved_by = inc.resolved_by or 'Operator'
+                        inc.resolved_at = inc.resolved_at or datetime.utcnow()
+
+                # 2. Sync alerts whose incidents are resolved
+                active_als = Alert.query.filter_by(status='ACTIVE').all()
+                for al in active_als:
+                    if al.incident_id:
+                        inc = Incident.query.filter_by(incident_id=al.incident_id).first()
+                        if inc and inc.status == 'RESOLVED':
+                            al.status = 'RESOLVED'
+                            al.resolved_by = al.resolved_by or 'Operator'
+                            al.resolved_at = al.resolved_at or datetime.utcnow()
+
+                db.session.commit()
+
+                # 3. Synchronize all camera statuses
+                for cam in Camera.query.all():
+                    cam.sync_status()
+        except Exception as e:
+            logger.warning(f"Database initialization/sync note: {e}")
             seed_database()
 
     return app

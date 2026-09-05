@@ -18,9 +18,11 @@ import {
 } from 'lucide-react';
 import { incidentsAPI } from '../services/api';
 import CCTVCanvas from '../components/CCTVCanvas';
+import { useAlerts } from '../context/AlertContext';
 
 const IncidentHistory = () => {
   const navigate = useNavigate();
+  const { resolveIncident, activeIncidentCount } = useAlerts();
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIncident, setSelectedIncident] = useState(null);
@@ -302,6 +304,26 @@ const IncidentHistory = () => {
                   </div>
 
                   <div className="flex items-center gap-3">
+                    {selectedIncident.status !== 'RESOLVED' && (
+                      <button
+                        onClick={async () => {
+                          const ok = await resolveIncident(selectedIncident.incident_id);
+                          if (ok) {
+                            fetchIncidents();
+                            setSelectedIncident(prev => ({
+                              ...prev,
+                              status: 'RESOLVED',
+                              resolution_notes: 'Resolved from Incident Management console. Threat neutralized.',
+                              resolved_at: new Date().toISOString().replace('T', ' ').substring(0, 19)
+                            }));
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 font-mono font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Resolve Incident</span>
+                      </button>
+                    )}
                     <div className="text-right font-mono">
                       <div className="text-[10px] text-slate-400 uppercase">Evaluated Threat Score</div>
                       <div className="text-xl font-extrabold text-red-400">

@@ -57,12 +57,23 @@ def simulate_detection():
     camera_id = data.get('camera_id', 'CAM-01')
     object_type = data.get('object_type', 'PERSON')
     confidence = float(data.get('confidence', 92.5))
+    person_count = int(data.get('person_count', 1))
+
+    from models.camera import Camera
+    camera = Camera.query.filter_by(camera_id=camera_id).first()
+    rz = camera.get_restricted_zone() if camera else {'x': 0.65, 'y': 0.25, 'w': 0.30, 'h': 0.50}
 
     sim_data = {
         'camera_id': camera_id,
         'object_type': object_type,
         'confidence': confidence,
-        'bbox': {'x': 0.45, 'y': 0.35, 'w': 0.18, 'h': 0.40},
+        'person_count': person_count,
+        'bbox': {
+            'x': float(rz.get('x', 0.65)) + 0.05,
+            'y': float(rz.get('y', 0.25)) + 0.05,
+            'w': 0.15,
+            'h': 0.30
+        },
         'timestamp': datetime.utcnow().isoformat()
     }
     

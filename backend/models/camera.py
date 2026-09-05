@@ -79,11 +79,53 @@ class Camera(db.Model):
         since = datetime.utcnow() - timedelta(hours=24)
         return self.incidents.filter(Incident.detection_time >= since).order_by(Incident.detection_time.desc()).all()
 
+    def sync_status(self):
+        """
+        Recalculates and updates camera.status based on active alerts/incidents:
+        - Shows ALERT if and only if one or more active unresolved alerts/incidents exist.
+        - Returns to OFFLINE if health_status in ('OFFLINE', 'NO_SIGNAL'), else returns to ONLINE.
+        """
+        from models.incident import Incident
+        from models.alert import Alert
+        active_alerts_cnt = self.alerts.filter_by(status='ACTIVE').count()
+        active_inc_cnt = self.incidents.filter(Incident.status.in_(['NEW', 'ACKNOWLEDGED', 'UNDER_INVESTIGATION'])).count()
+
+        if active_alerts_cnt > 0 or active_inc_cnt > 0:
+            new_status = 'ALERT'
+        elif self.health_status in ['OFFLINE', 'NO_SIGNAL']:
+            new_status = 'OFFLINE'
+        else:
+            new_status = 'ONLINE'
+
+        if self.status != new_status:
+            self.status = new_status
+            db.session.commit()
+        return self.status
+
     def to_dict(self, include_active_incident=True, include_24h_incidents=False):
         from models.incident import Incident
         active_inc = self.get_latest_unresolved_incident() if include_active_incident else None
         recent_24h = self.get_recent_incidents_24h() if include_24h_incidents else []
         
+        active_alerts_cnt = self.alerts.filter_by(status='ACTIVE').count()
+        active_inc_cnt = self.incidents.filter(Incident.status.in_(['NEW', 'ACKNOWLEDGED', 'UNDER_INVESTIGATION'])).count()
+
+        # Dynamic synchronized status: ALERT only if unresolved alerts or incidents exist
+        if active_alerts_cnt > 0 or active_inc_cnt > 0:
+            effective_status = 'ALERT'
+        elif self.health_status in ['OFFLINE', 'NO_SIGNAL']:
+            effective_status = 'OFFLINE'
+        else:
+            effective_status = 'ONLINE'
+
+        # Auto-sync persistent column if drifted
+        if self.status != effective_status:
+            try:
+                self.status = effective_status
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
         return {
             'id': self.id,
             'camera_id': self.camera_id,
@@ -92,7 +134,7 @@ class Camera(db.Model):
             'location_name': self.location_name,
             'latitude': self.latitude,
             'longitude': self.longitude,
-            'status': self.status,
+            'status': effective_status,
             'health_status': self.health_status,
             'video_url': self.video_url,
             'stream_type': self.stream_type,
@@ -108,8 +150,8 @@ class Camera(db.Model):
             },
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_active': self.last_active.isoformat() if self.last_active else None,
-            'alert_count': self.alerts.filter_by(status='ACTIVE').count(),
-            'active_incident_count': self.incidents.filter(Incident.status.in_(['NEW', 'ACKNOWLEDGED', 'UNDER_INVESTIGATION'])).count(),
+            'alert_count': active_alerts_cnt,
+            'active_incident_count': active_inc_cnt,
             'active_incident': active_inc.to_dict(include_timeline=True) if active_inc else None,
             'has_24h_incident': len(recent_24h) > 0,
             'recent_24h_incident': recent_24h[0].to_dict(include_timeline=True) if len(recent_24h) > 0 else None

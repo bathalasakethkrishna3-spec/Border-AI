@@ -211,16 +211,10 @@ def resolve_incident(identifier):
         al.resolved_by = username
         al.resolved_at = datetime.utcnow()
 
-    # Reset camera status to ONLINE if no other active incidents exist for this camera
+    # Re-evaluate camera status dynamically
     camera = Camera.query.filter_by(camera_id=incident.camera_id).first()
     if camera:
-        other_active = Incident.query.filter(
-            Incident.camera_id == camera.camera_id,
-            Incident.status.in_(['NEW', 'ACKNOWLEDGED', 'UNDER_INVESTIGATION']),
-            Incident.id != incident.id
-        ).count()
-        if other_active == 0:
-            camera.status = 'ONLINE'
+        camera.sync_status()
 
     # Add Timeline Event
     timeline_event = IncidentTimeline(
